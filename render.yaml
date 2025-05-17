@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: api-bellota
+    env: node
+    region: frankfurt
+    plan: free
+    branch: main
+    buildCommand: npm install
+    startCommand: npm start
+    autoDeploy: true
+    envVars:
+      - key: MONGO_URI
+        value: mongodb+srv://Bellota112:epXl5MKAggnP9kK9@bellota.zuaqi.mongodb.net/Bellota112?retryWrites=true&w=majority&appName=Bellota
