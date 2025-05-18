@@ -5,84 +5,167 @@ require('dotenv').config();
 
 const app = express();
 
-// Configuración de middlewares
-app.use(cors());
-app.use(express.json({ limit: '20mb' }));  // Solo necesitas este, bodyParser está incluido en express
+// 1. Configuración mejorada de middlewares
+app.use(cors({
+  origin: '*' // Puedes restringir esto a tu dominio en producción
+}));
+app.use(express.json({ limit: '25mb' })); // Aumentado para fotos grandes
+app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 
-// Conexión a MongoDB
-mongoose.connect(process.env.MONGO_URI, {
+// 2. Conexión robusta a MongoDB
+const mongoOptions = {
   useNewUrlParser: true,
   useUnifiedTopology: true,
-  serverSelectionTimeoutMS: 5000  // Timeout de 5 segundos para la conexión
-})
-.then(() => console.log('✅ MongoDB conectado'))
-.catch(err => {
-  console.error('❌ Error de conexión a MongoDB:', err);
-  process.exit(1);  // Salir si no hay conexión
-});
+  serverSelectionTimeoutMS: 10000, // 10 segundos de timeout
+  retryWrites: true,
+  w: 'majority'
+};
 
-// Esquema e Modelo (mejor definidos en el mismo archivo para este ejemplo)
+mongoose.connect(process.env.MONGO_URI, mongoOptions)
+  .then(() => console.log('✅ MongoDB conectado exitosamente'))
+  .catch(err => {
+    console.error('❌ Error crítico de MongoDB:', err);
+    process.exit(1); // Falla rápida si no hay DB
+  });
+
+// 3. Esquema mejorado con validaciones
 const incidenciaSchema = new mongoose.Schema({
-  bellota: { type: Number, required: true },
-  localizacion: {
-    latitud: { type: Number, required: true },
-    longitud: { type: Number, required: true }
+  bellota: { 
+    type: Number, 
+    required: [true, 'El ID de bellota es requerido'],
+    min: [0, 'ID no puede ser negativo']
   },
-  incidencias: { type: Number, required: true },  // Nota: plural "incidencias"
-  activo: { type: Boolean, default: true },
-  fechaCreacion: { type: Date, default: Date.now },
-  foto: { type: String, required: true }  // Campo obligatorio
+  localizacion: {
+    latitud: { 
+      type: Number, 
+      required: true,
+      min: -90,
+      max: 90
+    },
+    longitud: { 
+      type: Number, 
+      required: true,
+      min: -180,
+      max: 180
+    }
+  },
+  incidencias: { 
+    type: Number, 
+    required: true,
+    enum: [1, 2], // 1: pánico, 2: hombre muerto
+    validate: {
+      validator: Number.isInteger,
+      message: 'Tipo de incidencia debe ser 1 o 2'
+    }
+  },
+  activo: { 
+    type: Boolean, 
+    default: true 
+  },
+  fechaCreacion: { 
+    type: Date, 
+    default: Date.now,
+    immutable: true // No puede modificarse
+  },
+  foto: { 
+    type: String, 
+    required: [true, 'La foto es requerida'],
+    validate: {
+      validator: v => v && v.length > 100,
+      message: 'La foto debe ser un Base64 válido'
+    }
+  }
+}, {
+  timestamps: true // Añade createdAt y updatedAt automáticamente
 });
 
+// 4. Modelo con métodos personalizados
 const Incidencia = mongoose.model('Incidencia', incidenciaSchema);
 
-// Endpoint para reportar
+// 5. Middleware de logging para todas las peticiones
+app.use((req, res, next) => {
+  console.log(`📨 ${req.method} ${req.path}`);
+  next();
+});
+
+// 6. Endpoint mejorado para reportar
 app.post('/api/reportar', async (req, res) => {
   console.log('📥 Datos recibidos:', {
-    body: req.body,
-    fotoLength: req.body.foto?.length || 0
+    body: Object.keys(req.body),
+    fotoSize: req.body.foto?.length || 0
   });
 
   try {
-    // Validación manual adicional
-    if (!req.body.foto || req.body.foto.length < 100) {  // Ejemplo: mínimo 100 caracteres
-      throw new Error('La foto no es válida o está vacía');
-    }
-
-    const nuevaIncidencia = new Incidencia({
+    // Normalización de datos entrantes
+    const datosIncidencia = {
       ...req.body,
-      // Aseguramos que "incidencias" esté presente (puede venir como "incidencia")
-      incidencias: req.body.incidencias || req.body.incidencia
-    });
+      incidencias: req.body.incidencias || req.body.incidencia || 1, // Default a 1 (pánico)
+      localizacion: req.body.localizacion || {
+        latitud: req.body.latitud || 0,
+        longitud: req.body.longitud || 0
+      }
+    };
 
-    await nuevaIncidencia.save();
+    const nuevaIncidencia = new Incidencia(datosIncidencia);
+    const saved = await nuevaIncidencia.save();
     
-    console.log('💾 Incidencia guardada:', nuevaIncidencia._id);
-    res.status(201).json({ 
-      mensaje: 'Incidencia guardada',
-      id: nuevaIncidencia._id 
+    console.log(`💾 Incidencia ${saved._id} guardada`);
+    return res.status(201).json({
+      success: true,
+      id: saved._id,
+      fecha: saved.fechaCreacion
     });
 
   } catch (err) {
-    console.error('❌ Error al guardar:', err.message);
-    res.status(400).json({  // 400 para errores de validación
-      error: err.message || 'Error al guardar la incidencia'
+    console.error('❌ Error:', err.message);
+    
+    // Manejo diferente para errores de validación
+    if (err.name === 'ValidationError') {
+      const errors = Object.values(err.errors).map(e => e.message);
+      return res.status(422).json({ 
+        success: false,
+        errors 
+      });
+    }
+    
+    return res.status(500).json({ 
+      success: false,
+      error: 'Error interno del servidor' 
     });
   }
 });
 
-// Endpoint de prueba
-app.get('/', (req, res) => {
-  res.send('API de Incidencias Funcionando 🚀');
+// 7. Endpoint de estado del servicio
+app.get('/api/status', (req, res) => {
+  const status = {
+    db: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
+    memory: process.memoryUsage(),
+    uptime: process.uptime()
+  };
+  res.json(status);
 });
 
-// Manejo de errores global
+// 8. Manejo de errores global mejorado
 app.use((err, req, res, next) => {
-  console.error('🔥 Error no manejado:', err);
-  res.status(500).json({ error: 'Error interno del servidor' });
+  console.error('🔥 Error no manejado:', err.stack);
+  res.status(500).json({ 
+    success: false,
+    error: 'Error inesperado del servidor' 
+  });
 });
 
+// 9. Iniciar servidor con manejo de puerto
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`🖥️ Servidor escuchando en puerto ${PORT}`);
+});
+
+// 10. Manejo adecuado de cierre
+process.on('SIGINT', () => {
+  server.close(() => {
+    mongoose.connection.close(false, () => {
+      console.log('🚪 Servidor y conexión a MongoDB cerrados');
+      process.exit(0);
+    });
+  });
 });
