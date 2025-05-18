@@ -1,17 +1,27 @@
-
 {
   "name": "api-bellota",
-  "version": "1.0.0",
-  "description": "API para registrar incidencias desde dispositivo Bellota ESP32",
+  "version": "2.0.0",
+  "description": "API para registrar incidencias desde dispositivo Bellota ESP32 con MongoDB",
   "main": "index.js",
+  "type": "module",  // Opcional: Si quieres usar ES modules
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "dev": "nodemon index.js",  // Para desarrollo
+    "test": "jest --coverage"  // Si añades tests
   },
   "dependencies": {
-    "body-parser": "^1.20.2",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
-    "mongoose": "^7.5.0"
+    "mongoose": "^8.0.3",  // Versión más reciente con mejor soporte para MongoDB 6+
+    "helmet": "^7.1.0"  // Seguridad adicional
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2",  // Solo para desarrollo
+    "jest": "^29.6.2"     // Para testing (opcional)
+  },
+  "engines": {
+    "node": ">=18.0.0",  // Versión mínima requerida
+    "npm": ">=9.0.0"
   }
 }
