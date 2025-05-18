@@ -20,6 +20,10 @@ mongoose.connect(process.env.MONGO_URI, {
 .catch(err => console.error('Error de conexión:', err));
 
 app.post('/api/reportar', async (req, res) => {
+  console.log("Datos recibidos:", {
+    fotoRecibida: !!req.body.foto,  // ¿Llegó la foto?
+    longitudFoto: req.body.foto?.length  // Tamaño del string
+  });
   try {
     const data = req.body;
     const nueva = new Incidencia(data);
