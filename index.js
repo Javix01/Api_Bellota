@@ -145,6 +145,62 @@ app.get('/api/status', (req, res) => {
   res.json(status);
 });
 
+app.get('/api/reportarData', async (req, res) => {
+  console.log('📥 Datos recibidos por GET:', Object.keys(req.query));
+
+  // Validación estricta de parámetros
+  if (!req.query.foto || req.query.foto.length < 100) {
+    return res.status(422).json({
+      success: false,
+      error: 'La foto en Base64 es obligatoria y debe ser válida'
+    });
+  }
+
+  try {
+    const datosIncidencia = {
+      bellota: parseInt(req.query.bellota) || 0,
+      localizacion: {
+        latitud: parseFloat(req.query.latitud),
+        longitud: parseFloat(req.query.longitud)
+      },
+      incidencias: parseInt(req.query.incidencias),
+      foto: req.query.foto
+    };
+
+    // Validación de coordenadas
+    if (isNaN(datosIncidencia.localizacion.latitud) || 
+        isNaN(datosIncidencia.localizacion.longitud)) {
+      return res.status(422).json({
+        success: false,
+        error: 'Coordenadas GPS inválidas'
+      });
+    }
+
+    // Validación de tipo de incidencia
+    if (![1, 2].includes(datosIncidencia.incidencias)) {
+      return res.status(422).json({
+        success: false,
+        error: 'Tipo de incidencia debe ser 1 (pánico) o 2 (hombre muerto)'
+      });
+    }
+
+    const nuevaIncidencia = new Incidencia(datosIncidencia);
+    const saved = await nuevaIncidencia.save();
+    
+    return res.status(201).json({
+      success: true,
+      id: saved._id
+    });
+
+  } catch (err) {
+    console.error('❌ Error en GET:', err.message);
+    return res.status(500).json({ 
+      success: false,
+      error: 'Error al procesar la incidencia' 
+    });
+  }
+});
+
 // 8. Manejo de errores global mejorado
 app.use((err, req, res, next) => {
   console.error('🔥 Error no manejado:', err.stack);
