@@ -22,9 +22,9 @@ const mongoOptions = {
 };
 
 mongoose.connect(process.env.MONGO_URI, mongoOptions)
-  .then(() => console.log('✅ MongoDB conectado exitosamente'))
+  .then(() => console.log('MongoDB conectado exitosamente'))
   .catch(err => {
-    console.error('❌ Error crítico de MongoDB:', err);
+    console.error('Error crítico de MongoDB:', err);
     process.exit(1); // Falla rápida si no hay DB
   });
 
@@ -84,13 +84,13 @@ const Incidencia = mongoose.model('Incidencia', incidenciaSchema);
 
 // 5. Middleware de logging para todas las peticiones
 app.use((req, res, next) => {
-  console.log(`📨 ${req.method} ${req.path}`);
+  console.log(`${req.method} ${req.path}`);
   next();
 });
 
 // 6. Endpoint mejorado para reportar
 app.post('/api/reportar', async (req, res) => {
-  console.log('📥 Datos recibidos:', {
+  console.log('Datos recibidos:', {
     body: Object.keys(req.body),
     fotoSize: req.body.foto?.length || 0
   });
@@ -109,7 +109,7 @@ app.post('/api/reportar', async (req, res) => {
     const nuevaIncidencia = new Incidencia(datosIncidencia);
     const saved = await nuevaIncidencia.save();
     
-    console.log(`💾 Incidencia ${saved._id} guardada`);
+    console.log(`Incidencia ${saved._id} guardada`);
     return res.status(201).json({
       success: true,
       id: saved._id,
@@ -117,7 +117,7 @@ app.post('/api/reportar', async (req, res) => {
     });
 
   } catch (err) {
-    console.error('❌ Error:', err.message);
+    console.error('Error:', err.message);
     
     // Manejo diferente para errores de validación
     if (err.name === 'ValidationError') {
@@ -193,7 +193,7 @@ app.get('/api/reportarData', async (req, res) => {
     });
 
   } catch (err) {
-    console.error('❌ Error en GET:', err.message);
+    console.error('Error en GET:', err.message);
     return res.status(500).json({ 
       success: false,
       error: 'Error al procesar la incidencia' 
@@ -203,7 +203,7 @@ app.get('/api/reportarData', async (req, res) => {
 
 // 8. Manejo de errores global mejorado
 app.use((err, req, res, next) => {
-  console.error('🔥 Error no manejado:', err.stack);
+  console.error('Error no manejado:', err.stack);
   res.status(500).json({ 
     success: false,
     error: 'Error inesperado del servidor' 
@@ -213,14 +213,14 @@ app.use((err, req, res, next) => {
 // 9. Iniciar servidor con manejo de puerto
 const PORT = process.env.PORT || 3000;
 const server = app.listen(PORT, () => {
-  console.log(`🖥️ Servidor escuchando en puerto ${PORT}`);
+  console.log(`Servidor escuchando en puerto ${PORT}`);
 });
 
 // 10. Manejo adecuado de cierre
 process.on('SIGINT', () => {
   server.close(() => {
     mongoose.connection.close(false, () => {
-      console.log('🚪 Servidor y conexión a MongoDB cerrados');
+      console.log('Servidor y conexión a MongoDB cerrados');
       process.exit(0);
     });
   });
